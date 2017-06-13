@@ -14,9 +14,7 @@ public class Test : MonoBehaviour
     {
         m_start.onClick.AddListener(() =>
         {
-            //m_ifly.Init();
-            m_ifly.StartSpeech();
-            m_ifly.StopSpeech();
+            m_ifly.StartSpeech(3);
         });
         m_stop.onClick.AddListener(() =>
         {

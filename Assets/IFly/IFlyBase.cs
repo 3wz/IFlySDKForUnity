@@ -63,7 +63,7 @@ namespace Wangz.IFly
             m_initState = true;
         }
 
-        public virtual void StartSpeech()
+        public virtual void StartSpeech(int lengthSec)
         {
             int errorcode = (int)Errors.MSP_SUCCESS;
 
@@ -80,8 +80,8 @@ namespace Wangz.IFly
                 return;
             }
 
-            //m_audioClip = Microphone.Start(null, true, 3, 16000);
-            m_audioClip = Resources.Load<AudioClip>("test");
+            m_audioClip = Microphone.Start(null, false, lengthSec, 16000);
+            //m_audioClip = Resources.Load<AudioClip>("test2");
 
             OnBegin();
             m_isListening = true;
@@ -108,6 +108,7 @@ namespace Wangz.IFly
             var epState = EpStatus.MSP_EP_LOOKING_FOR_SPEECH;
             var recState = RecogStatus.MSP_REC_STATUS_SUCCESS;
 
+            AudioSave.Save(Application.temporaryCachePath + "/CurrentRecord.wav", m_audioClip);
             var bytes = IFlyUtils.ConvertClipToBytes(m_audioClip);
             errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringAnsi(m_sessionId), bytes, (uint)bytes.Length, audioState, ref epState, ref recState);
             if ((int)Errors.MSP_SUCCESS != errorCode)
@@ -167,8 +168,8 @@ namespace Wangz.IFly
             if (m_sessionId != IntPtr.Zero)
             {
                 MSCDLL.QISRSessionEnd(Marshal.PtrToStringAnsi(m_sessionId), null);
-                Clear();
             }
+            Clear();
             if (OnErrorEvent != null)
                 OnErrorEvent(error);
         }

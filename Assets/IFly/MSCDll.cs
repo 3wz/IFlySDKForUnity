@@ -5,11 +5,7 @@ namespace Wangz.IFly
 {
     public class MSCDLL
     {
-#if UNITY_EDITOR
-        public const string mscdll = "msc";
-#elif UNITY_STANDALONE_WIN
-        public const string mscdll = "msc.dll";
-#elif UNITY_ANDROID
+#if UNITY_EDITOR || UNITY_STANDALONE_WIN || UNITY_ANDROID
         public const string mscdll = "msc";
 #elif UNITY_IOS
         public const string mscdll = "__Internal";
