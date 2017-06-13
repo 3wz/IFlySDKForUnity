@@ -8,10 +8,10 @@ namespace Wangz.IFly
     public class IFlyBase : MonoBehaviour
     {
         public string m_appid;
-        private const string SessionBeginParams = "sub = iat, domain = iat, language = en_us, accent = mandarin, sample_rate = 16000, result_type = json, result_encoding = utf8";
+        private const string SessionBeginParams = "sub = iat, ptt = 0, domain = iat, language = en_us, accent = mandarin, sample_rate = 16000, result_type = plain, result_encoding = utf8";
         private bool m_initState;
         #region Speech Callback
-        public event Action<int> OnErrorEvent;
+        public event Action<string> OnErrorEvent;
         public event Action OnBeginEvent;
         public event Action OnEndEvent;
         public event Action<string> OnResultEvent;
@@ -30,7 +30,7 @@ namespace Wangz.IFly
 
         void Start()
         {
-            //Init();
+            Init();
         }
 
         void OnDestroy()
@@ -46,41 +46,38 @@ namespace Wangz.IFly
         #region iFly Method
         public virtual void Init()
         {
-            int ret = (int)Errors.MSP_SUCCESS;
+            int errorCode = (int)Errors.MSP_SUCCESS;
             string login_params = string.Format("appid = {0}, work_dir = .", m_appid); // 登录参数，appid与msc库绑定,请勿随意改动
 
             /* 用户登录 */
-            ret = MSCDLL.MSPLogin(null, null, login_params); //第一个参数是用户名，第二个参数是密码，均传NULL即可，第三个参数是登录参数	
-            if ((int)Errors.MSP_SUCCESS != ret)
+            errorCode = MSCDLL.MSPLogin(null, null, login_params); //第一个参数是用户名，第二个参数是密码，均传NULL即可，第三个参数是登录参数	
+            if ((int)Errors.MSP_SUCCESS != errorCode)
             {
-                Debug.Log(string.Format("MSPLogin failed , Error code {0}", ret));
-                ret = MSCDLL.MSPLogout(); //退出登录
-                Debug.Log("MSPLogout : " + ret);
+                OnError(string.Format("MSPLogin failed , Error code {0}", errorCode));
+                MSCDLL.MSPLogout(); //退出登录
                 m_initState = false;
-                OnError(ret);
+                return;
             }
-            else
-            {
-                Debug.Log("Init Succ");
-                m_initState = true;
-            }
+
+            Debug.Log("Init Succ");
+            m_initState = true;
         }
 
         public virtual void StartSpeech()
         {
-            int errcode = (int)Errors.MSP_SUCCESS;
+            int errorcode = (int)Errors.MSP_SUCCESS;
 
             if (m_isListening)
             {
                 Debug.Log("Speech Recognizer Is Listening!!");
             }
 
-            m_sessionId = MSCDLL.QISRSessionBegin(null, SessionBeginParams, ref errcode); //听写不需要语法，第一个参数为NULL
+            m_sessionId = MSCDLL.QISRSessionBegin(null, SessionBeginParams, ref errorcode); //听写不需要语法，第一个参数为NULL
 
-            if ((int)Errors.MSP_SUCCESS != errcode)
+            if ((int)Errors.MSP_SUCCESS != errorcode)
             {
-                Debug.Log(string.Format("QISRSessionBegin failed! error code : {0}", errcode));
-                OnError(errcode);
+                OnError(string.Format("QISRSessionBegin failed! error code : {0}", errorcode));
+                return;
             }
 
             //m_audioClip = Microphone.Start(null, true, 3, 16000);
@@ -112,55 +109,66 @@ namespace Wangz.IFly
             var recState = RecogStatus.MSP_REC_STATUS_SUCCESS;
 
             var bytes = IFlyUtils.ConvertClipToBytes(m_audioClip);
-            //var pcmDataIntPtr = IFlyUtils.BytesToIntptr(bytes);
-            errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringUni(m_sessionId), bytes, (uint)bytes.Length, audioState, ref epState, ref recState);
+            errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringAnsi(m_sessionId), bytes, (uint)bytes.Length, audioState, ref epState, ref recState);
             if ((int)Errors.MSP_SUCCESS != errorCode)
             {
-                Debug.Log(string.Format("write LAST_SAMPLE failed: {0}", errorCode));
-                MSCDLL.QISRSessionEnd(Marshal.PtrToStringUni(m_sessionId), null);
-                OnError(errorCode);
+                OnError(string.Format("write LAST_SAMPLE failed: {0}", errorCode));
             }
-            errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringUni(m_sessionId), null, 0, AudioStatus.MSP_AUDIO_SAMPLE_LAST, ref epState, ref recState);
-            if ((int)Errors.MSP_SUCCESS != errorCode)
+            else
             {
-                Debug.Log(string.Format("write LAST_SAMPLE failed: {0}", errorCode));
-                MSCDLL.QISRSessionEnd(Marshal.PtrToStringUni(m_sessionId), "write error");
-                OnError(errorCode);
-            }
-
-            IntPtr result = IntPtr.Zero;
-            while (recState != RecogStatus.MSP_REC_STATUS_COMPLETE)
-            {
-                result = MSCDLL.QISRGetResult(Marshal.PtrToStringUni(m_sessionId), ref recState, 0, ref errorCode);
+                errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringAnsi(m_sessionId), null, 0, AudioStatus.MSP_AUDIO_SAMPLE_LAST, ref epState, ref recState);
                 if ((int)Errors.MSP_SUCCESS != errorCode)
                 {
-                    Debug.Log(string.Format("QISRGetResult failed! error code: {0}", errorCode));
-                    break;
+                    OnError(string.Format("write LAST_SAMPLE failed: {0}", errorCode));
                 }
-                yield return 0;
+                else
+                {
+                    IntPtr resultPtr = IntPtr.Zero;
+                    string result = "";
+                    while (recState != RecogStatus.MSP_REC_STATUS_COMPLETE)
+                    {
+                        resultPtr = MSCDLL.QISRGetResult(Marshal.PtrToStringAnsi(m_sessionId), ref recState, 0, ref errorCode);
+                        if ((int)Errors.MSP_SUCCESS != errorCode)
+                        {
+                            OnError(string.Format("QISRGetResult failed! error code: {0}", errorCode));
+                            break;
+                        }
+                        Debug.Log("Get Result : " + Marshal.PtrToStringAnsi(resultPtr));
+                        result += Marshal.PtrToStringAnsi(resultPtr);
+                        yield return 0;
+                    }
+                    if (errorCode == (int)Errors.MSP_SUCCESS)
+                    {
+                        OnResult(result);
+                        MSCDLL.QISRSessionEnd(Marshal.PtrToStringAnsi(m_sessionId), "normal");
+                        OnEnd();
+                        Clear();
+                    }
+                }
             }
-
-            if (null != result)
-                OnResult(Marshal.PtrToStringUni(result));
-
-            MSCDLL.QISRSessionEnd(Marshal.PtrToStringUni(m_sessionId), "normal");
-
-            OnEnd();
-            m_audioClip = null;
-            m_sessionId = IntPtr.Zero;
-            m_isListening = false;
         }
 
         public virtual void CancelSpeech()
         {
+            Microphone.End(null);
+            Clear();
+        }
+
+        private void Clear()
+        {
             m_audioClip = null;
             m_sessionId = IntPtr.Zero;
             m_isListening = false;
         }
 
-        private void OnError(int error)
+        private void OnError(string error)
         {
             Debug.Log("OnSpeechError : " + error);
+            if (m_sessionId != IntPtr.Zero)
+            {
+                MSCDLL.QISRSessionEnd(Marshal.PtrToStringAnsi(m_sessionId), null);
+                Clear();
+            }
             if (OnErrorEvent != null)
                 OnErrorEvent(error);
         }
