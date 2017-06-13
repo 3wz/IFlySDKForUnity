@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using UnityEngine.UI;
-using Wangz.IFly;
+using Wangz.IFly.IFly;
 
 public class Test : MonoBehaviour
 {

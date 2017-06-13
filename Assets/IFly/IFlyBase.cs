@@ -21,7 +21,7 @@ namespace Wangz.IFly
         private AudioSource m_audioPlay;
         private AudioClip m_audioClip;
         private bool m_isListening;
-        private string m_sessionId;
+        private IntPtr m_sessionId;
 
         void Awake()
         {
@@ -37,7 +37,7 @@ namespace Wangz.IFly
         {
             if (m_initState)
             {
-                int ret = IFlyMSPCMN.MSPLogout();
+                int ret = MSCDLL.MSPLogout();
                 Debug.Log("MSPLogout : " + ret);
             }
         }
@@ -50,11 +50,11 @@ namespace Wangz.IFly
             string login_params = string.Format("appid = {0}, work_dir = .", m_appid); // 登录参数，appid与msc库绑定,请勿随意改动
 
             /* 用户登录 */
-            ret = IFlyMSPCMN.MSPLogin(null, null, login_params); //第一个参数是用户名，第二个参数是密码，均传NULL即可，第三个参数是登录参数	
+            ret = MSCDLL.MSPLogin(null, null, login_params); //第一个参数是用户名，第二个参数是密码，均传NULL即可，第三个参数是登录参数	
             if ((int)Errors.MSP_SUCCESS != ret)
             {
                 Debug.Log(string.Format("MSPLogin failed , Error code {0}", ret));
-                ret = IFlyMSPCMN.MSPLogout(); //退出登录
+                ret = MSCDLL.MSPLogout(); //退出登录
                 Debug.Log("MSPLogout : " + ret);
                 m_initState = false;
                 OnError(ret);
@@ -75,7 +75,7 @@ namespace Wangz.IFly
                 Debug.Log("Speech Recognizer Is Listening!!");
             }
 
-            m_sessionId = IFlyMSPISR.QISRSessionBegin(null, SessionBeginParams, ref errcode); //听写不需要语法，第一个参数为NULL
+            m_sessionId = MSCDLL.QISRSessionBegin(null, SessionBeginParams, ref errcode); //听写不需要语法，第一个参数为NULL
 
             if ((int)Errors.MSP_SUCCESS != errcode)
             {
@@ -106,24 +106,32 @@ namespace Wangz.IFly
 
         private IEnumerator WaitResult()
         {
-            int errorCode = 0;
-            int epState = 0;
-            int recState = 0;
+            int errorCode = (int)Errors.MSP_SUCCESS;
+            var audioState = AudioStatus.MSP_AUDIO_SAMPLE_FIRST;
+            var epState = EpStatus.MSP_EP_LOOKING_FOR_SPEECH;
+            var recState = RecogStatus.MSP_REC_STATUS_SUCCESS;
 
             var bytes = IFlyUtils.ConvertClipToBytes(m_audioClip);
-            var pcmDataIntPtr = IFlyUtils.BytesToIntptr(bytes);
-            errorCode = IFlyMSPISR.QISRAudioWrite(m_sessionId, pcmDataIntPtr, bytes.Length, (int)AudioSampleState.LAST, ref epState, ref recState);
-            if (errorCode != 0)
+            //var pcmDataIntPtr = IFlyUtils.BytesToIntptr(bytes);
+            errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringUni(m_sessionId), bytes, (uint)bytes.Length, audioState, ref epState, ref recState);
+            if ((int)Errors.MSP_SUCCESS != errorCode)
             {
                 Debug.Log(string.Format("write LAST_SAMPLE failed: {0}", errorCode));
-                IFlyMSPISR.QISRSessionEnd(m_sessionId, "write err");
+                MSCDLL.QISRSessionEnd(Marshal.PtrToStringUni(m_sessionId), null);
+                OnError(errorCode);
+            }
+            errorCode = MSCDLL.QISRAudioWrite(Marshal.PtrToStringUni(m_sessionId), null, 0, AudioStatus.MSP_AUDIO_SAMPLE_LAST, ref epState, ref recState);
+            if ((int)Errors.MSP_SUCCESS != errorCode)
+            {
+                Debug.Log(string.Format("write LAST_SAMPLE failed: {0}", errorCode));
+                MSCDLL.QISRSessionEnd(Marshal.PtrToStringUni(m_sessionId), "write error");
                 OnError(errorCode);
             }
 
-            string result = null;
-            while (recState != (int)RecognizerState.COMPLETE)
+            IntPtr result = IntPtr.Zero;
+            while (recState != RecogStatus.MSP_REC_STATUS_COMPLETE)
             {
-                result = IFlyMSPISR.QISRGetResult(m_sessionId, ref recState, 0, ref errorCode);
+                result = MSCDLL.QISRGetResult(Marshal.PtrToStringUni(m_sessionId), ref recState, 0, ref errorCode);
                 if ((int)Errors.MSP_SUCCESS != errorCode)
                 {
                     Debug.Log(string.Format("QISRGetResult failed! error code: {0}", errorCode));
@@ -133,27 +141,21 @@ namespace Wangz.IFly
             }
 
             if (null != result)
-                OnResult(result);
+                OnResult(Marshal.PtrToStringUni(result));
 
-            IFlyMSPISR.QISRSessionEnd(m_sessionId, "normal");
+            MSCDLL.QISRSessionEnd(Marshal.PtrToStringUni(m_sessionId), "normal");
 
             OnEnd();
             m_audioClip = null;
-            m_sessionId = null;
+            m_sessionId = IntPtr.Zero;
             m_isListening = false;
         }
 
         public virtual void CancelSpeech()
         {
             m_audioClip = null;
+            m_sessionId = IntPtr.Zero;
             m_isListening = false;
-            m_sessionId = null;
-        }
-
-        public virtual void SetParameter(string var1, string var2)
-        {
-            if (string.IsNullOrEmpty(m_sessionId))
-                IFlyMSPISR.QISRSetParam(m_sessionId, var1, var2);
         }
 
         private void OnError(int error)

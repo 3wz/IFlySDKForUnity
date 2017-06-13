@@ -3,7 +3,7 @@ using System.Collections;
 using System;
 using System.Runtime.InteropServices;
 
-namespace Wangz
+namespace Wangz.IFly
 {
     public class IFlyUtils
     {

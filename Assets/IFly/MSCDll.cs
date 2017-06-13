@@ -1,8 +1,34 @@
-﻿using UnityEngine;
-using System.Collections;
+﻿using System;
+using System.Runtime.InteropServices;
 
 namespace Wangz.IFly
 {
+    public class MSCDLL
+    {
+#if UNITY_EDITOR
+        public const string mscdll = "msc";
+#elif UNITY_STANDALONE_WIN
+        public const string mscdll = "msc.dll";
+#elif UNITY_ANDROID
+        public const string mscdll = "msc";
+#elif UNITY_IOS
+        public const string mscdll = "__Internal";
+#endif
+
+        [DllImport(mscdll, CallingConvention = CallingConvention.StdCall)]
+        public static extern int MSPLogin(string usr, string pwd, string parameters);
+        [DllImport(mscdll, CallingConvention = CallingConvention.StdCall)]
+        public static extern int MSPLogout();
+        [DllImport(mscdll, CallingConvention = CallingConvention.StdCall)]
+        public static extern IntPtr QISRSessionBegin(string grammarList, string _params, ref int errorCode);
+        [DllImport(mscdll, CallingConvention = CallingConvention.StdCall)]
+        public static extern int QISRAudioWrite(string sessionID, byte[] waveData, uint waveLen, AudioStatus audioStatus, ref EpStatus epStatus, ref RecogStatus recogStatus);
+        [DllImport(mscdll, CallingConvention = CallingConvention.StdCall)]
+        public static extern IntPtr QISRGetResult(string sessionID, ref RecogStatus rsltStatus, int waitTime, ref int errorCode);
+        [DllImport(mscdll, CallingConvention = CallingConvention.StdCall)]
+        public static extern int QISRSessionEnd(string sessionID, string hints);
+    }
+
     public enum Errors
     {
         MSP_SUCCESS = 0,
@@ -553,5 +579,42 @@ namespace Wangz.IFly
 
         /* 非实时转写错误码：26000~26999 */
         SPEECH_ERROR_LFASR_BASE = 26000,	/* 非实时转写错误码基码 */
-    } 
+    }
+
+    #region ISR枚举常量
+    public enum AudioStatus
+    {
+        MSP_AUDIO_SAMPLE_INIT = 0x00,
+        MSP_AUDIO_SAMPLE_FIRST = 0x01,
+        MSP_AUDIO_SAMPLE_CONTINUE = 0x02,
+        MSP_AUDIO_SAMPLE_LAST = 0x04,
+    }
+
+    public enum EpStatus
+    {
+        MSP_EP_LOOKING_FOR_SPEECH = 0,
+        MSP_EP_IN_SPEECH = 1,
+        MSP_EP_AFTER_SPEECH = 3,
+        MSP_EP_TIMEOUT = 4,
+        MSP_EP_ERROR = 5,
+        MSP_EP_MAX_SPEECH = 6,
+        MSP_EP_IDLE = 7  // internal state after stop and before start
+    }
+
+    public enum RecogStatus
+    {
+        MSP_REC_STATUS_SUCCESS = 0,
+        MSP_REC_STATUS_NO_MATCH = 1,
+        MSP_REC_STATUS_INCOMPLETE = 2,
+        MSP_REC_STATUS_NON_SPEECH_DETECTED = 3,
+        MSP_REC_STATUS_SPEECH_DETECTED = 4,
+        MSP_REC_STATUS_COMPLETE = 5,
+        MSP_REC_STATUS_MAX_CPU_TIME = 6,
+        MSP_REC_STATUS_MAX_SPEECH = 7,
+        MSP_REC_STATUS_STOPPED = 8,
+        MSP_REC_STATUS_REJECTED = 9,
+        MSP_REC_STATUS_NO_SPEECH_FOUND = 10,
+        MSP_REC_STATUS_FAILURE = MSP_REC_STATUS_NO_MATCH,
+    }
+    #endregion
 }
