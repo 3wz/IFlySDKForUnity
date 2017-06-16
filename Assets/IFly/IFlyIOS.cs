@@ -9,7 +9,7 @@ namespace Wangz.IFly
         {
         }
 
-        public override void StartSpeech(int lengthSec)
+        public override void StartSpeech()
         {
         }
 
@@ -25,5 +25,5 @@ namespace Wangz.IFly
         public override void CancelSpeech()
         {
         }
-    } 
+    }
 }
