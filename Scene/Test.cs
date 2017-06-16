@@ -5,7 +5,7 @@ using Wangz.IFly;
 
 public class Test : MonoBehaviour
 {
-    public IFlyBase m_ifly;
+    private IFlyBase m_ifly;
     public Button m_start;
     public Button m_stop;
     public Text m_result;
@@ -14,11 +14,11 @@ public class Test : MonoBehaviour
     void Start()
     {
 #if UNITY_EDITOR || UNITY_STANDALONE_WIN
-        gameObject.AddComponent<IFlyWin>();
+        m_ifly = gameObject.AddComponent<IFlyWin>();
 #elif UNITY_ANDROID
-        gameObject.AddComponent<IFlyAndroid>();
+        m_ifly = gameObject.AddComponent<IFlyAndroid>();
 #elif UNITY_IOS
-        gameObject.AddComponent<IFlyIOS>();
+        m_ifly = gameObject.AddComponent<IFlyIOS>();
 #endif
         m_start.onClick.AddListener(() =>
         {
